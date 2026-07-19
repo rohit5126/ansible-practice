@@ -1,0 +1,11 @@
+---
+
+app_env: stage
+common_packages:
+  - vim
+  - htop
+  - tree
+
+http_port: 3000
+packages:
+  - nginx

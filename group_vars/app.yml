@@ -1,0 +1,13 @@
+---
+
+app_env: development
+common_packages:
+  - vim
+  - htop
+  - tree
+
+http_port: 80
+packages:
+  - mysql-server
+  - nginx
+  

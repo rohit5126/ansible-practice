@@ -1,0 +1,11 @@
+---
+app_env: prod
+common_packages:
+  - vim
+  - htop
+  - tree
+
+http_port: 8090
+packages:
+  - docker
+  - nginx

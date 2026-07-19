@@ -1,0 +1,16 @@
+---
+- name: "variable demo file"
+  hosts: application
+  become: true
+
+  tasks:
+    - name: update
+      shell: "apt-get update"
+    - name: print
+      debug:
+        msg: " deploying i env {{ app_env }} on port {{ http_port }}"
+
+    - name: install required package
+      apt: 
+        name: "{{ common_packages }}"
+        state: present 
