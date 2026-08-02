@@ -1,0 +1,17 @@
+---
+users:
+  - name: Professor
+    group: Mastermind
+  - name: Berlin
+    group: Leader
+  - name: tokyo
+    group: thief
+  - name: paris
+    group: thief
+  - name: rio
+    group: thief
+
+packages:
+  - nginx
+  - docker.io
+  - wget

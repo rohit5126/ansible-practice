@@ -1,0 +1,21 @@
+---
+- name: money heist
+  hosts: app
+  become: true
+
+  vars_files: 
+    - vars/variable.yml
+
+  tasks:
+    - name: create user and group
+      user:
+        name: "{{ item.name }}"
+        group: "{{ item.group }}"
+        state: present
+      loop: "{{ users }}"
+
+    - name: install packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ packages }}"
