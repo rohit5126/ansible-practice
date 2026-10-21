@@ -1,0 +1,104 @@
+---
+# Baseline configuration management (idempotent - safe to run repeatedly).
+#   ansible-playbook config_management.yml --check --diff     # drift detection
+#   ansible-playbook config_management.yml                    # enforce baseline
+#   ansible-playbook config_management.yml --tags ssh,sysctl  # only parts
+#   ansible-galaxy collection install -r requirements.yml     # one-time
+
+- name: Enforce baseline configuration
+  hosts: "{{ target_hosts | default('linux') }}"
+  become: true
+  gather_facts: true
+
+  vars:
+    ssh_service: "{{ 'sshd' if ansible_os_family == 'RedHat' else 'ssh' }}"
+    chrony_service: "{{ 'chronyd' if ansible_os_family == 'RedHat' else 'chrony' }}"
+    chrony_conf_path: "{{ '/etc/chrony.conf' if ansible_os_family == 'RedHat' else '/etc/chrony/chrony.conf' }}"
+    sshd_validate: "/usr/sbin/sshd -t -f %s"
+
+  tasks:
+    - name: Install baseline packages
+      ansible.builtin.package:
+        name: "{{ baseline_packages }}"
+        state: present
+      tags: [packages]
+
+    - name: Set timezone
+      community.general.timezone:
+        name: "{{ timezone }}"
+      tags: [time]
+
+    - name: Deploy chrony (NTP) configuration
+      ansible.builtin.template:
+        src: chrony.conf.j2
+        dest: "{{ chrony_conf_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+      notify: Restart chrony
+      tags: [time]
+
+    - name: Harden sshd configuration
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?\\s*{{ item.key }}\\s"
+        line: "{{ item.key }} {{ item.value }}"
+        validate: "{{ sshd_validate }}"
+        backup: true
+      loop: "{{ sshd_settings | dict2items }}"
+      notify: Restart sshd
+      tags: [ssh]
+
+    - name: Apply kernel/sysctl hardening
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_file: /etc/sysctl.d/99-baseline.conf
+        state: present
+        reload: true
+      loop: "{{ sysctl_settings | dict2items }}"
+      tags: [sysctl]
+
+    - name: Deploy login banner (motd)
+      ansible.builtin.template:
+        src: motd.j2
+        dest: /etc/motd
+        owner: root
+        group: root
+        mode: "0644"
+      tags: [banner]
+
+    - name: Set secure permissions on key files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+        owner: root
+        group: root
+      loop:
+        - { path: /etc/passwd, mode: "0644" }
+        - { path: /etc/shadow, mode: "0000" }
+        - { path: /etc/ssh/sshd_config, mode: "0600" }
+      tags: [permissions]
+
+    - name: Ensure baseline services are enabled and running
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - "{{ chrony_service }}"
+        - rsyslog
+        - "{{ ssh_service }}"
+      tags: [services]
+
+  handlers:
+    - name: Restart chrony
+      ansible.builtin.service:
+        name: "{{ chrony_service }}"
+        state: restarted
+
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: "{{ ssh_service }}"
+        state: restarted

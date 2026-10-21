@@ -1,0 +1,31 @@
+---
+- name: "patch weekend activity"
+  hosts: all
+  become: true
+  gather_facts: true
+  serial: 25%
+  max_fail_percentage: 0
+
+  vars:
+    ssh_service: "{{ 'sshd' if ansible_facts.os_family == 'Redhat' else 'ssh' }}"
+    disk_available: 40
+
+  tasks:
+  - name: pre-checks
+    tags: [precheck]
+    block:
+      - name: verify ping on the server
+        ping:
+
+      - name: Check free disk space
+        assert:
+          that:
+            - ((item.size_available  / item.size_total) * 100) >= disk_available
+          fail_msg: "{{ item.mount }} does not have enough space, currently only {{ ((item.size_available  / item.size_total) * 100) }}% available."
+          quiet: true
+        loop: "{{ ansible_facts.mounts }}"
+
+         
+
+
+     
