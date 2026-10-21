@@ -1,0 +1,7 @@
+--- 
+- name: "ansible patching"
+  hosts: all
+  gather_facts: true
+  serial: 25%
+  max_fail_percentage: 0
+  become: true

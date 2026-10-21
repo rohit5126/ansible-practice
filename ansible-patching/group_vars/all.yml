@@ -1,1 +1,3 @@
 services: [cron]
+abort_if_precheck_failed: false
+reboot_required: true

@@ -1,13 +1,13 @@
 ---
 - name: "patch weekend activity"
-  hosts: ubuntu
+  hosts: all
   become: true
   gather_facts: true
   serial: 25%
   max_fail_percentage: 0
 
   vars:
-    ssh_service: "{{ 'sshd' if ansible_facts.os_family == 'Redhat' else 'ssh' }}"
+    ssh_service: "{{ 'sshd' if ansible_facts.os_family == 'RedHat' else 'ssh' }}"
     disk_available: 20
     all_services: "{{ [ssh_service] + services }}"
 
@@ -35,11 +35,71 @@
 
       - name: show pre service result
         set_fact:
-          servce_result: "{{ dict(pre_service.results | map(attribute='item') | zip(pre_service.results | map(attribute='stdout'))) }}"
+          service_result: "{{ dict(pre_service.results | map(attribute='item') | zip(pre_service.results | map(attribute='stdout'))) }}"
 
       - name: display result
         debug:
-          var: servce_result
+          var: service_result
+
+      - name: abort if precheck failed
+        assert:
+          that: service_result.values() | select('ne' , 'active') | list | length == 0
+          fail_msg: "pre check failed"
+        when: abort_if_precheck_failed | bool
+
+      - name: capture baseline
+        shell: |
+          set -o pipefail
+          echo "KERNEL=$(uname -r)" 
+          echo "Uptime=$(uptime -p)" 
+          echo "Ports=$(ss -tulnp | awk '{print $5}' | sort -u )"
+        args:
+          executable: /bin/bash
+        register: baseline_output
+        changed_when: false
+
+      - name: print baseline
+        debug:
+          var: baseline_output.stdout_lines
+
+
+  - name: Patching
+    tags: [patching]
+    block:
+      - name: apply updates RHEL family
+        dnf:
+          name: "*"
+          state: latest
+          update_cache: true
+          lock_timeout: 300
+        register: patch_result
+        when: ansible_facts.os_family == "RedHat"
+
+      - name: apply updates Debian family
+        apt:
+          update_cache: true
+          lock_timeout: 300
+        register: patch_result
+        when: ansible_facts.os_family == "Debian"
+
+      - name: reboot server
+        reboot:
+          reboot_timeout: 200
+          post_reboot_delay: 30
+        when: reboot_required | bool
+    
+    rescue:
+      - name: patching failed
+        fail:
+          msg: " Patching failed on {{ inventory_hostname }} review output above"
+
+
+      
+
+
+
+         
+
 
           
 
