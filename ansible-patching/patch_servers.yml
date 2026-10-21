@@ -1,6 +1,6 @@
 ---
 - name: "patch weekend activity"
-  hosts: all
+  hosts: ubuntu
   become: true
   gather_facts: true
   serial: 25%
@@ -8,7 +8,8 @@
 
   vars:
     ssh_service: "{{ 'sshd' if ansible_facts.os_family == 'Redhat' else 'ssh' }}"
-    disk_available: 40
+    disk_available: 20
+    all_services: "{{ [ssh_service] + services }}"
 
   tasks:
   - name: pre-checks
@@ -20,10 +21,27 @@
       - name: Check free disk space
         assert:
           that:
-            - ((item.size_available  / item.size_total) * 100) >= disk_available
-          fail_msg: "{{ item.mount }} does not have enough space, currently only {{ ((item.size_available  / item.size_total) * 100) }}% available."
+            - ((item.size_available | float / item.size_total) * 100) >= disk_available
+          fail_msg: "{{ item.mount }} does not have enough space, currently only {{ ((item.size_available | float  / item.size_total) * 100) }}% available."
           quiet: true
-        loop: "{{ ansible_facts.mounts }}"
+        loop: "{{ ansible_facts.mounts | rejectattr('fstype', 'equalto', 'squashfs') | rejectattr('device', 'match', '^/dev/loop') | list }}"
+
+      - name: check service status
+        command: " systemctl is-active {{ item }}"
+        loop: "{{ all_services }}"
+        register: pre_service
+        changed_when: false
+        failed_when: false
+
+      - name: show pre service result
+        set_fact:
+          servce_result: "{{ dict(pre_service.results | map(attribute='item') | zip(pre_service.results | map(attribute='stdout'))) }}"
+
+      - name: display result
+        debug:
+          var: servce_result
+
+          
 
          
 
