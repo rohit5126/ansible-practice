@@ -91,7 +91,80 @@
     rescue:
       - name: patching failed
         fail:
-          msg: " Patching failed on {{ inventory_hostname }} review output above"
+          msg: "Patching failed on {{ inventory_hostname }} review output above"
+
+  - name: Postchecks
+    tags: [postcheck]
+    block:
+      - name: wait for host to be reachable
+        ansible.builtin.wait_for_connection:
+          timeout: 200
+      - name: chech services
+        command: systemctl is-active {{ item }}
+        loop: "{{ all_services }}"
+        register: post_service
+        changed_when: false
+        failed_when: false
+
+      - name: set facts for post_service
+        set_fact:
+          post_result: "{{ dict(post_service.results | map(attribute='item') | zip(post_service.results | map(attribute='stdout'))) }}"
+    
+      - name: capture post reboot baseline
+        shell: |
+          set -o pipefail 
+          echo "KERNEL = $(uname -r)"
+          echo "UPTIME = $(uptime -p)"
+          echo "PORTS = $(ss -tulnp | awk '{print $5}' | sort -u)"
+        args:
+          executable: /bin/bash
+        register: baseline_post
+        changed_when: false
+
+      - name: application health check
+        uri:
+          url: "{{ health_check_url }}"
+          status_code: [200,204]
+          timeout: 10
+        register: health
+        until: health.status in [200,204]
+        retries: "{{ service_retries }}"
+        delay: "{{ service_delay }}"
+        failed_when: false
+      
+      - name: Print post services
+        debug:
+          var: post_result
+      
+      - name: validate post services
+        assert:
+          that: post_result.values() | select('ne','active') | list | length == 0
+          fail_msg: "post service cehck failed"
+        when: abort_if_postcheck_failed | bool
+
+      - name: prnt baseline_output
+        debug:
+         var: baseline_post.stdout_lines
+
+      - name: validate application health
+        assert: 
+          that: health.status in [200,204]
+          fail_msg: "application not reachable"
+
+      - name: patching summary
+        debug:
+          msg: "Patching completed everything is up and running"
+          var: "{{ health.status }}"
+      
+          
+        
+        
+
+
+
+
+
+    
 
 
       
