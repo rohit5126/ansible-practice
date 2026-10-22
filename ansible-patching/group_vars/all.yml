@@ -1,7 +1,7 @@
 services: [cron]
 abort_if_precheck_failed: false
 reboot_required: true
-health_check_url: https://www.google.com/
+health_check_url: https://rohitkumar5126.info/
 service_retries: 12
 service_delay: 10
 abort_if_postcheck_failed: false
